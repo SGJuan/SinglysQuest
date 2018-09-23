@@ -17,6 +17,8 @@ FOV_ALGO = 0  #default FOV algorithm
 FOV_LIGHT_WALLS = True
 TORCH_RADIUS = 10
 
+MAX_ROOM_MONSTERS = 3
+
 LIMIT_FPS = 20
 
 color_light_wall = libtcod.Color(130, 110, 50)
@@ -56,15 +58,17 @@ class Rect:
 class Object:
     #This is generic object: the player, a monster, an item, the stairs
     #It's always represented by a character on screen.
-    def __init__(self, x, y, char, color):
+    def __init__(self, x, y, char, name, color, blocks=False):
         self.x = x
         self.y = y
         self.char = char
+        self.name = name
         self.color = color
+        self.blocks = blocks
 
     def move(self, dx, dy):
         #move
-        if not map[self.x + dx][self.y + dy].blocked:
+        if not is_blocked(self.x + dx, self.y + dy):
             self.x += dx
             self.y += dy
             print('You are x: ' + str(self.x) + ' and at y: ' + str(self.y))
@@ -131,7 +135,7 @@ def make_map():
         if not failed:
             create_room(new_room)
             (new_x, new_y) = new_room.center()
-            room_no = Object(new_x, new_y, chr(65+num_rooms), libtcod.white)
+            room_no = Object(new_x, new_y, chr(65+num_rooms), 'room number', libtcod.white)
             objects.insert(0, room_no) 
 
             if num_rooms == 0:
@@ -151,8 +155,37 @@ def make_map():
                     create_v_tunnel(prev_y, new_y, prev_x)
                     create_h_tunnel(prev_x, new_x, new_y)
 
+            place_objects(new_room)
             rooms.append(new_room)
             num_rooms += 1
+
+def place_objects(room):
+    #Choose random number of monsters
+    num_monsters = libtcod.random_get_int(0, 0, MAX_ROOM_MONSTERS)
+
+    for i in range(num_monsters):
+        #choose random spot for this monster
+        x = libtcod.random_get_int(0, room.x1, room.x2)
+        y = libtcod.random_get_int(0, room.y1, room.y2)
+
+        #only place if the tile is not blocked
+        if not is_blocked(x, y):
+            if libtcod.random_get_int(0, 0, 100) < 80:
+                monster = Object(x, y, 'o', 'orc', libtcod.desaturated_green, blocks=True)
+            else:
+                monster = Object(x, y, 'T', 'Troll', libtcod.darker_green, blocks=True)
+
+            objects.append(monster)
+
+def is_blocked(x, y):
+    if map[x][y].blocked:
+        return True
+
+    for object in objects:
+        if object.blocks and object.x == x and object.y == y:
+            return True
+
+    return False
 
 def render_all():
     global color_light_wall, color_dark_wall
@@ -181,6 +214,7 @@ def render_all():
                         libtcod.console_set_char_background(con, x, y, color_light_wall, libtcod.BKGND_SET)
                     else:
                         libtcod.console_set_char_background(con, x, y, color_light_ground, libtcod.BKGND_SET)
+                    #light wall
                     map[x][y].explored = True
 
     for object in objects:
@@ -230,10 +264,10 @@ libtcod.console_set_custom_font('arial10x10.png', libtcod.FONT_TYPE_GREYSCALE | 
 libtcod.console_init_root(SCREEN_WIDTH, SCREEN_HEIGHT, "Singly's Adventure", False)
 #creating a now variable that is a console
 con = libtcod.console_new(SCREEN_WIDTH, SCREEN_WIDTH)
-player = Object(25, 23, '@', libtcod.white)
-npc = Object(25, 23, 'N', libtcod.yellow)
 
-objects = [npc, player]
+player = Object(0, 0, '@', 'Singly', libtcod.white, blocks=True)
+
+objects = [player]
 
 make_map()
 
